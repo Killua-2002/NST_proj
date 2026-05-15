@@ -8,36 +8,37 @@ import shutil
 # =========================
 # CONFIG
 # =========================
+# This script generates synthetic chromosome overlap datasets for training
+# It loads single chromosome images and creates overlapping pairs with labels
 
-SOURCE_DIR = Path("prepared_single_chromosomes/images_rgba")
+SOURCE_DIR = Path("prepared_single_chromosomes/images_rgba")  # Input: single chromosome images
 
-OUT_IMAGE_DIR = Path("generated_data/images")
-OUT_MASK_A_DIR = Path("generated_data/masks_A")
-OUT_MASK_B_DIR = Path("generated_data/masks_B")
-OUT_MASK_C_DIR = Path("generated_data/masks_C")
-OUT_PREVIEW_DIR = Path("generated_data/previews")
+OUT_IMAGE_DIR = Path("generated_data/images")  # Output: composite images
+OUT_MASK_A_DIR = Path("generated_data/masks_A")  # Mask for chromosome A
+OUT_MASK_B_DIR = Path("generated_data/masks_B")  # Mask for chromosome B
+OUT_MASK_C_DIR = Path("generated_data/masks_C")  # Mask for overlap region (A+B)
+OUT_PREVIEW_DIR = Path("generated_data/previews")  # Preview images with colored overlays
 
-CANVAS_SIZE = 512
-NUM_SAMPLES = 3000
+CANVAS_SIZE = 512  # Output image size (512x512 pixels)
+NUM_SAMPLES = 10000  # Number of synthetic samples to generate
 
-RANDOM_SEED = 42
+RANDOM_SEED = 42  # For reproducibility
 random.seed(RANDOM_SEED)
 np.random.seed(RANDOM_SEED)
 
-# Object extraction
-BACKGROUND_DIFF_THRESHOLD = 22
-MIN_OBJECT_AREA = 100
+# Object extraction parameters
+BACKGROUND_DIFF_THRESHOLD = 22  # Threshold for detecting chromosome pixels from background
+MIN_OBJECT_AREA = 100  # Minimum pixel area to be considered a valid chromosome
 
-# Overlap control
-MIN_OVERLAP_PIXELS = 120
-MAX_OVERLAP_RATIO = 0.55
+# Overlap control parameters
+MIN_OVERLAP_PIXELS = 120  # Minimum pixels that must overlap
+MAX_OVERLAP_RATIO = 0.55  # Maximum overlap ratio (overlap_area / min_chromosome_area)
 
-# Size control
-TARGET_LONG_SIDE_MIN = 250
-TARGET_LONG_SIDE_MAX = 380
+# Size control parameters
+TARGET_LONG_SIDE_MIN = 250  # Minimum long side length when resizing
+TARGET_LONG_SIDE_MAX = 380  # Maximum long side length when resizing
 
-# Nếu muốn xóa output cũ mỗi lần chạy
-CLEAR_OLD_OUTPUT = True
+CLEAR_OLD_OUTPUT = True  # Delete old generated_data folder on each run
 
 
 # =========================
