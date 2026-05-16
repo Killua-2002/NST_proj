@@ -4,6 +4,7 @@ import numpy as np
 import random
 import cv2
 import shutil
+import multiprocessing
 
 # =========================
 # CONFIG
@@ -19,6 +20,7 @@ OUT_PREVIEW_DIR = Path("generated_data/previews")
 
 CANVAS_SIZE = 512
 NUM_SAMPLES = 10000
+NUM_WORKERS = max(1, multiprocessing.cpu_count() - 1)
 
 RANDOM_SEED = 42
 random.seed(RANDOM_SEED)
@@ -342,6 +344,52 @@ def make_realistic_overlap_canvas(obj_A, mask_A, obj_B, mask_B):
 
 
 # =========================
+# MULTIPROCESSING HELPERS
+# =========================
+
+WORKER_SINGLE_PATHS = []
+
+
+def init_worker(single_paths, seed):
+    global WORKER_SINGLE_PATHS
+    WORKER_SINGLE_PATHS = single_paths
+    worker_seed = seed + multiprocessing.current_process().pid
+    random.seed(worker_seed)
+    np.random.seed(worker_seed)
+
+
+def generate_sample(sample_idx):
+    attempts = 0
+
+    while True:
+        attempts += 1
+        path_A, path_B = random.sample(WORKER_SINGLE_PATHS, 2)
+
+        obj_A, mask_A = extract_chromosome_object(Path(path_A))
+        obj_B, mask_B = extract_chromosome_object(Path(path_B))
+
+        if obj_A is None or obj_B is None:
+            continue
+
+        result = make_realistic_overlap_canvas(obj_A, mask_A, obj_B, mask_B)
+        if result is None:
+            continue
+
+        final_image, mask_A_canvas, mask_B_canvas, mask_C_canvas = result
+        name = f"img_{sample_idx:06d}.png"
+
+        final_image.save(OUT_IMAGE_DIR / name)
+        mask_A_canvas.save(OUT_MASK_A_DIR / name)
+        mask_B_canvas.save(OUT_MASK_B_DIR / name)
+        mask_C_canvas.save(OUT_MASK_C_DIR / name)
+
+        preview = make_preview(final_image, mask_A_canvas, mask_B_canvas, mask_C_canvas)
+        preview.save(OUT_PREVIEW_DIR / name)
+
+        return sample_idx
+
+
+# =========================
 # MAIN GENERATION
 # =========================
 
@@ -352,51 +400,27 @@ def main():
         raise ValueError(f"Need at least 2 PNG images in {SOURCE_DIR}")
 
     print(f"Found {len(single_paths)} single chromosome PNG images.")
-    print(f"Generating {NUM_SAMPLES} synthetic overlap samples...")
+    print(f"Generating {NUM_SAMPLES} synthetic overlap samples with {NUM_WORKERS} workers...")
 
     created = 0
-    attempts = 0
-    max_attempts = NUM_SAMPLES * 50
+    single_path_strings = [str(p) for p in single_paths]
 
-    while created < NUM_SAMPLES and attempts < max_attempts:
-        attempts += 1
-
-        path_A, path_B = random.sample(single_paths, 2)
-
-        obj_A, mask_A = extract_chromosome_object(path_A)
-        obj_B, mask_B = extract_chromosome_object(path_B)
-
-        if obj_A is None or obj_B is None:
-            continue
-
-        result = make_realistic_overlap_canvas(obj_A, mask_A, obj_B, mask_B)
-
-        if result is None:
-            continue
-
-        final_image, mask_A_canvas, mask_B_canvas, mask_C_canvas = result
-
-        created += 1
-        name = f"img_{created:06d}.png"
-
-        final_image.save(OUT_IMAGE_DIR / name)
-        mask_A_canvas.save(OUT_MASK_A_DIR / name)
-        mask_B_canvas.save(OUT_MASK_B_DIR / name)
-        mask_C_canvas.save(OUT_MASK_C_DIR / name)
-
-        preview = make_preview(final_image, mask_A_canvas, mask_B_canvas, mask_C_canvas)
-        preview.save(OUT_PREVIEW_DIR / name)
-
-        if created % 100 == 0:
-            print(f"Created {created}/{NUM_SAMPLES}")
+    if NUM_WORKERS > 1:
+        with multiprocessing.Pool(processes=NUM_WORKERS, initializer=init_worker, initargs=(single_path_strings, RANDOM_SEED)) as pool:
+            for _ in pool.imap_unordered(generate_sample, range(1, NUM_SAMPLES + 1)):
+                created += 1
+                if created % 100 == 0:
+                    print(f"Created {created}/{NUM_SAMPLES}")
+    else:
+        init_worker(single_path_strings, RANDOM_SEED)
+        for sample_idx in range(1, NUM_SAMPLES + 1):
+            generate_sample(sample_idx)
+            created += 1
+            if created % 100 == 0:
+                print(f"Created {created}/{NUM_SAMPLES}")
 
     print("Done.")
     print(f"Created: {created}")
-    print(f"Attempts: {attempts}")
-
-    if created < NUM_SAMPLES:
-        print("Warning: Could not create enough samples.")
-        print("Try lowering MIN_OVERLAP_PIXELS or increasing max_attempts.")
 
 
 if __name__ == "__main__":
