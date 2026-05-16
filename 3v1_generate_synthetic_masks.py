@@ -4,6 +4,7 @@ import numpy as np
 import random
 import cv2
 import shutil
+import os
 import multiprocessing
 
 # =========================
@@ -20,7 +21,7 @@ OUT_PREVIEW_DIR = Path("generated_data/previews")
 
 CANVAS_SIZE = 512
 NUM_SAMPLES = 10000
-NUM_WORKERS = max(1, multiprocessing.cpu_count() - 1)
+NUM_WORKERS = int(os.environ.get("NUM_WORKERS", multiprocessing.cpu_count() or 1))
 
 RANDOM_SEED = 42
 random.seed(RANDOM_SEED)
@@ -159,8 +160,8 @@ def extract_chromosome_object(image_path):
 
     obj_mask_arr = cropped_mask.astype(np.uint8) * 255
 
-    obj_rgba = Image.fromarray(obj_rgba_arr, mode="RGBA")
-    obj_mask = Image.fromarray(obj_mask_arr, mode="L")
+    obj_rgba = Image.fromarray(obj_rgba_arr, "RGBA")
+    obj_mask = Image.fromarray(obj_mask_arr, "L")
 
     return obj_rgba, obj_mask
 
@@ -239,7 +240,7 @@ def paste_object(canvas_rgba, canvas_mask, obj_rgba, obj_mask, center_x, center_
         region[obj_region > 0] = 255
         canvas_mask_arr[y1:y2, x1:x2] = region
 
-    return canvas_rgba, Image.fromarray(canvas_mask_arr, mode="L")
+    return canvas_rgba, Image.fromarray(canvas_mask_arr, "L")
 
 
 def make_preview(image, mask_A, mask_B, mask_C):
@@ -328,7 +329,7 @@ def make_realistic_overlap_canvas(obj_A, mask_A, obj_B, mask_B):
     if overlap_ratio > MAX_OVERLAP_RATIO:
         return None
 
-    mask_C_canvas = Image.fromarray((C_arr.astype(np.uint8) * 255), mode="L")
+    mask_C_canvas = Image.fromarray((C_arr.astype(np.uint8) * 255), "L")
 
     final_image = canvas.convert("RGB")
 
@@ -338,7 +339,7 @@ def make_realistic_overlap_canvas(obj_A, mask_A, obj_B, mask_B):
         arr = np.array(final_image).astype(np.int16)
         noise = np.random.normal(0, 2, arr.shape)
         arr = np.clip(arr + noise, 0, 255).astype(np.uint8)
-        final_image = Image.fromarray(arr, mode="RGB")
+        final_image = Image.fromarray(arr, "RGB")
 
     return final_image, mask_A_canvas, mask_B_canvas, mask_C_canvas
 
@@ -348,14 +349,26 @@ def make_realistic_overlap_canvas(obj_A, mask_A, obj_B, mask_B):
 # =========================
 
 WORKER_SINGLE_PATHS = []
+WORKER_EXTRACT_CACHE = {}
 
 
 def init_worker(single_paths, seed):
     global WORKER_SINGLE_PATHS
+    global WORKER_EXTRACT_CACHE
     WORKER_SINGLE_PATHS = single_paths
+    WORKER_EXTRACT_CACHE = {}
     worker_seed = seed + multiprocessing.current_process().pid
     random.seed(worker_seed)
     np.random.seed(worker_seed)
+
+
+def get_cached_chromosome_object(image_path):
+    cached = WORKER_EXTRACT_CACHE.get(image_path)
+    if cached is not None:
+        return cached
+    extracted = extract_chromosome_object(Path(image_path))
+    WORKER_EXTRACT_CACHE[image_path] = extracted
+    return extracted
 
 
 def generate_sample(sample_idx):
@@ -365,8 +378,8 @@ def generate_sample(sample_idx):
         attempts += 1
         path_A, path_B = random.sample(WORKER_SINGLE_PATHS, 2)
 
-        obj_A, mask_A = extract_chromosome_object(Path(path_A))
-        obj_B, mask_B = extract_chromosome_object(Path(path_B))
+        obj_A, mask_A = get_cached_chromosome_object(path_A)
+        obj_B, mask_B = get_cached_chromosome_object(path_B)
 
         if obj_A is None or obj_B is None:
             continue

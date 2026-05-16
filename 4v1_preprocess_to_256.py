@@ -1,6 +1,7 @@
 from pathlib import Path
 from PIL import Image
 import numpy as np
+import os
 import shutil
 import multiprocessing
 
@@ -11,7 +12,7 @@ INPUT_IMAGE_DIR = Path("generated_data/images")
 INPUT_MASK_A_DIR = Path("generated_data/masks_A")
 INPUT_MASK_B_DIR = Path("generated_data/masks_B")
 INPUT_MASK_C_DIR = Path("generated_data/masks_C")
-NUM_WORKERS = max(1, multiprocessing.cpu_count() - 1)
+NUM_WORKERS = int(os.environ.get("NUM_WORKERS", max(1, multiprocessing.cpu_count() - 1)))
 
 OUTPUT_ROOT = Path("processed_data_256")
 OUTPUT_IMAGE_DIR = OUTPUT_ROOT / "images"
@@ -114,28 +115,34 @@ def process_single_sample(img_path_str):
 # =========================
 # PROCESS
 # =========================
-image_paths = sorted(INPUT_IMAGE_DIR.glob("*.png"))
 
-print(f"Found {len(image_paths)} generated images.")
+def main():
+    image_paths = sorted(INPUT_IMAGE_DIR.glob("*.png"))
 
-if len(image_paths) == 0:
-    raise FileNotFoundError("No generated images found. Run 3v1_generate_synthetic_masks.py first.")
+    print(f"Found {len(image_paths)} generated images.")
 
-image_path_strs = [str(p) for p in image_paths]
-processed = 0
+    if len(image_paths) == 0:
+        raise FileNotFoundError("No generated images found. Run 3v1_generate_synthetic_masks.py first.")
 
-if NUM_WORKERS > 1:
-    with multiprocessing.Pool(processes=NUM_WORKERS) as pool:
-        for success in pool.imap_unordered(process_single_sample, image_path_strs, chunksize=16):
-            if success:
+    image_path_strs = [str(p) for p in image_paths]
+    processed = 0
+
+    if NUM_WORKERS > 1:
+        with multiprocessing.Pool(processes=NUM_WORKERS) as pool:
+            for success in pool.imap_unordered(process_single_sample, image_path_strs, chunksize=16):
+                if success:
+                    processed += 1
+                    if processed % 100 == 0:
+                        print(f"Processed {processed}/{len(image_paths)}")
+    else:
+        for img_path in image_paths:
+            if process_single_sample(str(img_path)):
                 processed += 1
                 if processed % 100 == 0:
                     print(f"Processed {processed}/{len(image_paths)}")
-else:
-    for img_path in image_paths:
-        if process_single_sample(str(img_path)):
-            processed += 1
-            if processed % 100 == 0:
-                print(f"Processed {processed}/{len(image_paths)}")
 
-print(f"Done preprocessing to 256x256. Processed {processed} files.")
+    print(f"Done preprocessing to 256x256. Processed {processed} files.")
+
+
+if __name__ == "__main__":
+    main()
