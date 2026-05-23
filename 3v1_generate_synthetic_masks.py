@@ -11,7 +11,7 @@ import multiprocessing
 # CONFIG
 # =========================
 
-SOURCE_DIR = Path("prepared_single_chromosomes/images_rgba")
+SOURCE_DIR = Path("source_data/single_chromosomes")
 
 OUT_IMAGE_DIR = Path("generated_data/images")
 OUT_MASK_A_DIR = Path("generated_data/masks_A")
@@ -20,7 +20,7 @@ OUT_MASK_C_DIR = Path("generated_data/masks_C")
 OUT_PREVIEW_DIR = Path("generated_data/previews")
 
 CANVAS_SIZE = 512
-NUM_SAMPLES = 10000
+NUM_SAMPLES = 4000
 NUM_WORKERS = int(os.environ.get("NUM_WORKERS", multiprocessing.cpu_count() or 1))
 
 RANDOM_SEED = 42
