@@ -20,6 +20,9 @@ BATCH_SIZE = 32
 EPOCHS = 200
 LEARNING_RATE = 1e-4
 
+BEST_MODEL_PATH = Path("results/best_unet.keras")
+FINAL_MODEL_PATH = Path("results/final_unet.keras")
+
 # Loss weight cho A, B, C
 # C cao hơn vì vùng overlap thường nhỏ và khó học hơn
 CHANNEL_WEIGHTS = tf.constant([1.0, 1.0, 3.0], dtype=tf.float32)
@@ -291,6 +294,12 @@ def main():
         ]
     )
 
+    if BEST_MODEL_PATH.exists():
+        print(f"Loading previous checkpoint weights from: {BEST_MODEL_PATH}")
+        model.load_weights(BEST_MODEL_PATH)
+    else:
+        print("No previous checkpoint found. Training from scratch.")
+
     model.summary()
 
     callbacks = [
@@ -299,12 +308,6 @@ def main():
             monitor="val_loss",
             mode="min",
             save_best_only=True,
-            verbose=1
-        ),
-        keras.callbacks.EarlyStopping(
-            monitor="val_loss",
-            patience=10,
-            restore_best_weights=True,
             verbose=1
         ),
         keras.callbacks.ReduceLROnPlateau(
@@ -326,12 +329,16 @@ def main():
         callbacks=callbacks
     )
 
+    print("Restoring best weights from checkpoint before evaluation...")
+    if BEST_MODEL_PATH.exists():
+        model.load_weights(BEST_MODEL_PATH)
+
     print("Evaluating on test set...")
     test_results = model.evaluate(test_ds, return_dict=True)
     print(test_results)
 
-    model.save("results/final_unet.keras")
-    print("Saved final model to results/final_unet.keras")
+    model.save(FINAL_MODEL_PATH)
+    print(f"Saved final model to {FINAL_MODEL_PATH}")
 
 
 if __name__ == "__main__":

@@ -283,13 +283,13 @@ def get_image_paths(input_dir):
 # =========================
 
 def main():
-    if BEST_MODEL_PATH.exists():
-        model_path = BEST_MODEL_PATH
-    elif FINAL_MODEL_PATH.exists():
+    if FINAL_MODEL_PATH.exists():
         model_path = FINAL_MODEL_PATH
+    elif BEST_MODEL_PATH.exists():
+        model_path = BEST_MODEL_PATH
     else:
         raise FileNotFoundError(
-            "No model found. Expected results/best_unet.keras or results/final_unet.keras"
+            "No model found. Expected results/final_unet.keras or results/best_unet.keras"
         )
 
     image_paths = get_image_paths(INPUT_DIR)
